@@ -15,6 +15,7 @@ type Config struct {
 	WebDir      string
 	AssetDir    string
 	SecretKey   string
+	Executor    string
 	Admin       Admin
 	Database    Database
 	NewAPI      NewAPI
@@ -152,6 +153,7 @@ func LoadFromLookup(lookup func(string) string) (Config, error) {
 		WebDir:      value("APP_WEB_DIR", "./web/dist"),
 		AssetDir:    value("APP_ASSET_DIR", "./data/assets"),
 		SecretKey:   strings.TrimSpace(lookup("APP_SECRET_KEY")),
+		Executor:    value("APP_EXECUTOR", "mock"),
 		Admin: Admin{
 			Username:         strings.TrimSpace(lookup("APP_ADMIN_USERNAME")),
 			Password:         lookup("APP_ADMIN_PASSWORD"),
@@ -185,6 +187,7 @@ func LoadFromLookup(lookup func(string) string) (Config, error) {
 	}
 
 	if cfg.Environment == "production" {
+		cfg.Executor = "production"
 		required := []struct {
 			key   string
 			value string

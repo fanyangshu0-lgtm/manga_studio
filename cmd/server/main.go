@@ -7,6 +7,8 @@ import (
 
 	"manga-drama-studio/internal/api"
 	"manga-drama-studio/internal/config"
+	"manga-drama-studio/internal/generation"
+	"manga-drama-studio/internal/newapi"
 	"manga-drama-studio/internal/runner"
 	"manga-drama-studio/internal/store"
 )
@@ -30,7 +32,12 @@ func main() {
 		log.Fatal(err)
 	}
 	broker := runner.NewBroker()
-	runtime := runner.New(data, runner.MockExecutor{}, broker)
+	var executor runner.Executor = runner.MockExecutor{}
+	if cfg.Executor == "production" {
+		client := newapi.New(cfg.NewAPI.BaseURL, cfg.NewAPI.Token, nil)
+		executor = runner.NewProductionExecutor(generation.NewPlanner(client, cfg.NewAPI.ScriptModel))
+	}
+	runtime := runner.New(data, executor, broker)
 	server := api.New(data, runtime, broker, cfg)
 	if err := server.BootstrapProvider(context.Background(), cfg.NewAPI); err != nil {
 		log.Fatal(err)
