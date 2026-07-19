@@ -1,0 +1,9 @@
+.git
+.worktrees
+.env
+data
+web/node_modules
+web/dist
+docs
+openspec
+*.log

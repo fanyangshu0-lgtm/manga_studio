@@ -1,4 +1,4 @@
-import type { NodeDefinition, Project, Provider, Run, Workflow } from '../types'
+import type { Asset, NodeDefinition, Project, Provider, Run, Workflow } from '../types'
 
 const base = import.meta.env.VITE_API_BASE ?? '/api/v1'
 
@@ -28,10 +28,14 @@ export const api = {
   createRun: (projectId: string) => request<Run>('/runs', { method: 'POST', body: JSON.stringify({ projectId }) }),
   run: (runId: string) => request<Run>(`/runs/${runId}`),
   cancelRun: (runId: string) => request<void>(`/runs/${runId}/cancel`, { method: 'POST' }),
+  resumeRun: (runId: string) => request<void>(`/runs/${runId}/resume`, { method: 'POST' }),
+  runAssets: (runId: string) => request<Asset[]>(`/runs/${runId}/assets`),
+  assetUrl: (assetId: string) => `${base}/assets/${assetId}`,
   runEventsUrl: (runId: string) => `${base}/runs/${runId}/events`,
   providers: () => request<Provider[]>('/providers'),
-  createProvider: (input: { name: string; kind: string; baseUrl: string; token: string; capabilities: string[]; weight: number }) => request<Provider>('/providers', { method: 'POST', body: JSON.stringify(input) }),
+  createProvider: (input: { name: string; kind: string; baseUrl: string; token: string; capabilities: string[]; models?: Provider['models']; weight: number }) => request<Provider>('/providers', { method: 'POST', body: JSON.stringify(input) }),
   updateProvider: (id: string, input: Partial<Omit<Provider, 'id' | 'secretHint'>> & { token?: string }) => request<Provider>(`/providers/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
+  testProvider: (id: string) => request<{ success: boolean; model: string }>(`/providers/${id}/test`, { method: 'POST' }),
   toggleProvider: (id: string, enabled: boolean) => request<Provider>(`/providers/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
   deleteProvider: (id: string) => request<void>(`/providers/${id}`, { method: 'DELETE' }),
 }

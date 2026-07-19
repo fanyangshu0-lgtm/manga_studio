@@ -13,9 +13,8 @@ func Example(projectID string) domain.Workflow {
 		{ID: "script", Type: "script", Name: "剧本拆解", Position: domain.Position{X: 330, Y: 100}, Config: map[string]any{"episodes": 1, "duration": 60}},
 		{ID: "character", Type: "character", Name: "角色设定", Position: domain.Position{X: 620, Y: 40}, Config: map[string]any{"style": "国潮赛博、电影光影"}},
 		{ID: "storyboard", Type: "storyboard", Name: "分镜规划", Position: domain.Position{X: 620, Y: 300}, Config: map[string]any{"shotCount": 8, "ratio": "9:16"}},
-		{ID: "image", Type: "image", Name: "画面生成", Position: domain.Position{X: 920, Y: 220}, Config: map[string]any{"model": "mock-image", "quality": "standard"}},
-		{ID: "voice", Type: "voice", Name: "对白配音", Position: domain.Position{X: 620, Y: 560}, Config: map[string]any{"model": "mock-voice"}},
-		{ID: "compose", Type: "compose", Name: "竖屏成片", Position: domain.Position{X: 1240, Y: 300}, Config: map[string]any{"resolution": "1080x1920", "subtitles": true}},
+		{ID: "image", Type: "image", Name: "Seedance 视频生成", Position: domain.Position{X: 920, Y: 220}, Config: map[string]any{"quality": "fast"}},
+		{ID: "compose", Type: "compose", Name: "最终成片", Position: domain.Position{X: 1240, Y: 300}, Config: map[string]any{"subtitles": true}},
 	}
 	edges := []domain.Edge{
 		{ID: "e1", Source: "story", SourceHandle: "story", Target: "script", TargetHandle: "story"},
@@ -24,9 +23,8 @@ func Example(projectID string) domain.Workflow {
 		{ID: "e4", Source: "character", SourceHandle: "character", Target: "storyboard", TargetHandle: "character"},
 		{ID: "e5", Source: "storyboard", SourceHandle: "shots", Target: "image", TargetHandle: "shots"},
 		{ID: "e6", Source: "character", SourceHandle: "character", Target: "image", TargetHandle: "character"},
-		{ID: "e7", Source: "script", SourceHandle: "script", Target: "voice", TargetHandle: "script"},
-		{ID: "e8", Source: "image", SourceHandle: "images", Target: "compose", TargetHandle: "images"},
-		{ID: "e9", Source: "voice", SourceHandle: "audio", Target: "compose", TargetHandle: "audio"},
+		{ID: "e7", Source: "image", SourceHandle: "clips", Target: "compose", TargetHandle: "clips"},
+		{ID: "e8", Source: "storyboard", SourceHandle: "shots", Target: "compose", TargetHandle: "shots"},
 	}
 	return domain.Workflow{ID: domain.NewID("wf"), ProjectID: projectID, Revision: 1, Nodes: nodes, Edges: edges, Viewport: domain.Viewport{X: 0, Y: 0, Zoom: 0.72}, UpdatedAt: now}
 }

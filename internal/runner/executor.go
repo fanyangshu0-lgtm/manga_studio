@@ -38,7 +38,7 @@ func (MockExecutor) Execute(ctx context.Context, node domain.Node, _ map[string]
 	case "storyboard":
 		outputs["shots"] = []string{"雨夜城门", "画师回眸", "古画苏醒"}
 	case "image":
-		outputs["images"] = []string{"asset://shot-001.png", "asset://shot-002.png"}
+		outputs["clips"] = []string{"asset://shot-001.mp4", "asset://shot-002.mp4"}
 	case "voice":
 		outputs["audio"] = "asset://dialogue.wav"
 	case "compose":

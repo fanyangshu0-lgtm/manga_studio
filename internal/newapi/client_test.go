@@ -84,7 +84,7 @@ func TestSubmitAndGetVideoTask(t *testing.T) {
 	}))
 	defer upstream.Close()
 	client := New(upstream.URL, "sk-test", upstream.Client())
-	task, err := client.SubmitVideo(context.Background(), VideoRequest{Model: "doubao-seedance-2-0-fast-260128", Prompt: "镜头", Seconds: 5, Metadata: map[string]any{"generate_audio": true}})
+	task, err := client.SubmitVideo(context.Background(), VideoRequest{Model: "doubao-seedance-2-0-fast-260128", Prompt: "镜头", Seconds: "5", Metadata: map[string]any{"generate_audio": true}})
 	require.NoError(t, err)
 	assert.Equal(t, "task-1", task.ID)
 	task, err = client.GetVideoTask(context.Background(), task.ID)

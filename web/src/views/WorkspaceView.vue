@@ -104,7 +104,7 @@ async function run(): Promise<void> { commitGraph(); await store.startRun() }
       </VueFlow>
       <div class="canvas-hint"><kbd>滚轮</kbd> 缩放 <kbd>拖拽</kbd> 平移 <kbd>Delete</kbd> 删除</div>
       <div v-if="connectionError" class="toast-error">{{ connectionError }}</div>
-      <RunDock :run="store.run" @run="run" @cancel="store.cancelRun" />
+      <RunDock :run="store.run" :assets="store.runAssets" @run="run" @cancel="store.cancelRun" @resume="store.resumeRun" />
     </section>
     <InspectorPanel :node="store.selectedNode" :definition="selectedDefinition" @update="updateNode" @remove="removeNode" />
   </main>

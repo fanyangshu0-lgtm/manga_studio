@@ -1,26 +1,29 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed } from 'vue'
 import type { NodeDefinition, StudioNode } from '../types'
 
 const props = defineProps<{ node: StudioNode | null; definition?: NodeDefinition }>()
 const emit = defineEmits<{ update: [node: StudioNode]; remove: [nodeId: string] }>()
-const name = ref('')
-const configText = ref('{}')
-const configError = ref('')
 
-watch(() => props.node, (node) => {
-  name.value = node?.name ?? ''
-  configText.value = JSON.stringify(node?.config ?? {}, null, 2)
-  configError.value = ''
-}, { immediate: true, deep: true })
+const prompt = computed({
+  get: () => String(props.node?.config.prompt ?? ''),
+  set: (value: string) => updateConfig('prompt', value),
+})
+const ratio = computed({
+  get: () => String(props.node?.config.ratio ?? '9:16'),
+  set: (value: string) => updateConfig('ratio', value),
+})
+const quality = computed({
+  get: () => String(props.node?.config.quality ?? 'fast'),
+  set: (value: string) => updateConfig('quality', value),
+})
 
-function apply(): void {
-  if (!props.node) return
-  try {
-    const config = JSON.parse(configText.value) as Record<string, unknown>
-    configError.value = ''
-    emit('update', { ...props.node, name: name.value.trim() || props.definition?.label || props.node.name, config })
-  } catch { configError.value = '配置必须是有效 JSON' }
+function updateName(value: string): void {
+  if (props.node) emit('update', { ...props.node, name: value.trim() || props.definition?.label || props.node.name })
+}
+
+function updateConfig(key: string, value: unknown): void {
+  if (props.node) emit('update', { ...props.node, config: { ...props.node.config, [key]: value } })
 }
 </script>
 
@@ -29,10 +32,19 @@ function apply(): void {
     <div class="panel-heading"><div><span class="eyebrow">INSPECTOR</span><h2>节点设置</h2></div></div>
     <div v-if="node" class="inspector-body">
       <div class="node-type-pill" :style="{ '--pill': definition?.color }">{{ definition?.label }}</div>
-      <label>节点名称<input v-model="name" type="text" @change="apply" /></label>
-      <label>节点 ID<input :value="node.id" type="text" disabled /></label>
-      <label>参数配置 <small>JSON</small><textarea v-model="configText" spellcheck="false" @blur="apply" /></label>
-      <p v-if="configError" class="field-error">{{ configError }}</p>
+      <label>节点名称<input :value="node.name" type="text" @change="updateName(($event.target as HTMLInputElement).value)"></label>
+      <label v-if="node.type === 'story-input'">故事创意<textarea v-model="prompt" rows="8" placeholder="主角、世界观、核心冲突和期望结局…" /></label>
+      <template v-else-if="node.type === 'storyboard'">
+        <label>画面比例<select v-model="ratio"><option value="9:16">9:16 竖屏</option><option value="16:9">16:9 横屏</option><option value="1:1">1:1 方形</option></select></label>
+        <p class="field-help">DeepSeek 会自动规划 1–12 个连续分镜，每个镜头 1–15 秒。</p>
+      </template>
+      <template v-else-if="node.type === 'image'">
+        <label>Seedance 模式<select v-model="quality"><option value="fast">2.0 Fast（默认，速度优先）</option><option value="quality">2.0（质量优先）</option></select></label>
+        <p class="field-help">每个分镜都会生成带原生音频的 720p 视频，默认并发数为 2。</p>
+      </template>
+      <p v-else-if="node.type === 'script'">使用 DeepSeek V4 Pro 生成结构化中文剧本。</p>
+      <p v-else-if="node.type === 'character'">根据剧本生成跨镜头一致的角色外观档案。</p>
+      <p v-else-if="node.type === 'compose'">使用 FFmpeg 拼接全部镜头、补齐音轨并烧录中文字幕。</p>
       <div class="port-summary">
         <h3>端口</h3>
         <div v-for="port in definition?.inputs" :key="`i-${port.id}`"><i class="in" /> 输入 · {{ port.label }} <small>{{ port.dataType }}</small></div>
@@ -40,7 +52,6 @@ function apply(): void {
       </div>
       <button class="danger-button" type="button" @click="emit('remove', node.id)">删除节点</button>
     </div>
-    <div v-else class="empty-inspector"><b>⌁</b><p>选择画布中的节点<br />以编辑名称和参数</p></div>
+    <div v-else class="empty-inspector"><b>◎</b><p>选择画布中的节点<br>查看和修改生成参数</p></div>
   </aside>
 </template>
-

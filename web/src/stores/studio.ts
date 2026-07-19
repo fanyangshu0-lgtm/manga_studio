@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { api } from '../api/client'
-import type { NodeDefinition, Project, Provider, Run, RunEvent, StudioNode, Workflow } from '../types'
+import type { Asset, NodeDefinition, Project, Provider, Run, RunEvent, StudioNode, Workflow } from '../types'
 
 export const useStudioStore = defineStore('studio', () => {
 	const authenticated = ref(false)
@@ -13,6 +13,7 @@ export const useStudioStore = defineStore('studio', () => {
   const catalog = ref<NodeDefinition[]>([])
   const providers = ref<Provider[]>([])
   const run = ref<Run | null>(null)
+  const runAssets = ref<Asset[]>([])
   const selectedNodeId = ref('')
   const busy = ref(false)
   const saving = ref(false)
@@ -119,6 +120,17 @@ export const useStudioStore = defineStore('studio', () => {
 
   async function cancelRun(): Promise<void> { if (run.value) await api.cancelRun(run.value.id) }
 
+  async function resumeRun(): Promise<void> {
+    if (!run.value) return
+    await api.resumeRun(run.value.id)
+    run.value = await api.run(run.value.id)
+    subscribe(run.value.id)
+  }
+
+  async function refreshRunAssets(): Promise<void> {
+    if (run.value) runAssets.value = await api.runAssets(run.value.id)
+  }
+
   function subscribe(runId: string): void {
     closeEvents()
     eventSource = new EventSource(api.runEventsUrl(runId))
@@ -126,7 +138,7 @@ export const useStudioStore = defineStore('studio', () => {
       const update = JSON.parse(event.data) as RunEvent
       if (run.value) { run.value.status = update.status; run.value.progress = update.progress; run.value.message = update.message }
       run.value = await api.run(runId)
-      if (update.type === 'run' && ['succeeded', 'failed', 'cancelled', 'interrupted'].includes(update.status)) closeEvents()
+      if (update.type === 'run' && ['succeeded', 'failed', 'cancelled', 'interrupted'].includes(update.status)) { closeEvents(); await refreshRunAssets() }
     }
     for (const type of ['snapshot', 'run', 'node']) eventSource.addEventListener(type, (event) => { void consume(event as MessageEvent<string>) })
     eventSource.onerror = () => { if (run.value && !['succeeded', 'failed', 'cancelled', 'interrupted'].includes(run.value.status)) error.value = '实时进度连接已断开，可刷新任务状态' }
@@ -138,8 +150,12 @@ export const useStudioStore = defineStore('studio', () => {
   async function addProvider(input: Parameters<typeof api.createProvider>[0]): Promise<void> { await api.createProvider(input); await refreshProviders() }
   async function toggleProvider(id: string, enabled: boolean): Promise<void> { await api.toggleProvider(id, enabled); await refreshProviders() }
   async function deleteProvider(id: string): Promise<void> { await api.deleteProvider(id); await refreshProviders() }
+  async function testProvider(id: string): Promise<void> {
+    const result = await api.testProvider(id)
+    error.value = result.success ? `渠道连接成功：${result.model}` : '渠道连接失败'
+  }
 
-	return { authenticated, username, authReady, projects, activeProjectId, activeProject, workflow, catalog, providers, run, selectedNodeId, selectedNode, definitionByType, busy, saving, error, initialize, login, logout, bootstrap, createProject, openProject, replaceGraph, updateNode, save, startRun, cancelRun, refreshProviders, addProvider, toggleProvider, deleteProvider }
+  return { authenticated, username, authReady, projects, activeProjectId, activeProject, workflow, catalog, providers, run, runAssets, selectedNodeId, selectedNode, definitionByType, busy, saving, error, initialize, login, logout, bootstrap, createProject, openProject, replaceGraph, updateNode, save, startRun, cancelRun, resumeRun, refreshRunAssets, refreshProviders, addProvider, toggleProvider, deleteProvider, testProvider }
 })
 
 function messageOf(cause: unknown): string { return cause instanceof Error ? cause.message : '发生未知错误' }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -236,7 +237,7 @@ func (e *ProductionExecutor) generateShot(ctx context.Context, info executionInf
 		}
 	}
 	if state.TaskID == "" {
-		task, submitErr := e.video.SubmitVideo(ctx, newapi.VideoRequest{Model: model, Prompt: shot.Prompt, Seconds: shot.DurationSeconds, Metadata: map[string]any{
+		task, submitErr := e.video.SubmitVideo(ctx, newapi.VideoRequest{Model: model, Prompt: shot.Prompt, Seconds: strconv.Itoa(shot.DurationSeconds), Metadata: map[string]any{
 			"resolution": "720p", "ratio": shot.Ratio, "watermark": false, "generate_audio": true,
 		}})
 		if submitErr != nil {

@@ -1,98 +1,128 @@
-# 绘界 · Manga Drama Studio
+# Manga Drama Studio
 
-一个面向 AI 漫剧生产的节点式工作台。后端使用 Go，前端使用 Vue 3，交互参考 ComfyUI，但领域模型围绕剧本、角色、分镜、画面、配音和视频合成设计。
+一套可直接部署的 AI 漫剧生产工作台：DeepSeek 负责中文剧本、角色和分镜，豆包 Seedance 2.0 负责带原生音频的视频镜头，FFmpeg 自动拼接并烧录字幕。服务端使用 Go，界面使用 Vue 3，生产数据保存到 MySQL。
 
-![status](https://img.shields.io/badge/status-MVP-f06445) ![Go](https://img.shields.io/badge/Go-1.22+-00ADD8) ![Vue](https://img.shields.io/badge/Vue-3-42b883)
+## 已实现
 
-## 当前能力
+- 管理员登录、HttpOnly 签名会话和登录限速。
+- MySQL 自动建表、项目/工作流/任务/资产持久化。
+- New API Token 使用 AES-GCM 加密保存，接口永不返回明文。
+- `deepseek-v4-pro` 生成结构化剧本、角色档案和最多 12 个分镜。
+- `doubao-seedance-2-0-fast-260128` 默认生成视频，可切换 `doubao-seedance-2-0-260128` 质量模型。
+- 两路并发生成、任务 ID 持久化、失败/取消/服务重启后恢复。
+- 视频校验下载、SHA-256 校验、FFmpeg 拼接、静音轨补齐和中文字幕。
+- Docker 单容器部署；MySQL 和 New API 使用宝塔宿主机已有服务。
 
-- 可拖动、连线、增删和配置的类型化节点画布。
-- 服务端 DAG 校验：必填输入、端口类型、未知节点/端口、重复边与环。
-- 项目和工作流持久化，运行前自动保存并快照。
-- 异步工作流执行、节点级进度、SSE 实时更新和取消。
-- Provider Token 加密保存、掩码展示、启停、权重和能力标签。
-- 开箱即用的 mock 执行器，无需模型 Token 也能演示完整流程。
-- Docker 单容器部署，Go 同时托管生产前端。
+## 宝塔部署
 
-> 这是经过明确范围控制的 MVP。真实 LLM、ComfyUI、TTS 和 FFmpeg 适配器已预留执行器边界，但尚未内置。详见 [产品脑暴](docs/brainstorm.md) 和 [OpenSpec 变更](openspec/changes/mvp-comic-drama-studio)。
+### 1. 创建 MySQL 数据库
 
-## 本地开发
+在宝塔「数据库」中创建：
 
-要求：Go 1.22+、Node.js 20+、pnpm 9+。
+- 数据库：`manga_drama_studio`
+- 用户：`manga_studio`
+- 访问权限：所有人（MySQL 中对应 `%`，用于允许 Docker 网桥访问）
+- 字符集：`utf8mb4`
+
+也可以用 root 执行：
+
+```sql
+CREATE DATABASE manga_drama_studio CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'manga_studio'@'%' IDENTIFIED BY '换成新的强密码';
+GRANT ALL PRIVILEGES ON manga_drama_studio.* TO 'manga_studio'@'%';
+FLUSH PRIVILEGES;
+```
+
+确认 MySQL 监听宿主机接口，而不只是 `127.0.0.1`。无需在云安全组向公网开放 3306；只需允许 Docker 网桥访问宿主机 3306。
+
+### 2. 上传代码并配置环境变量
+
+将项目上传到例如 `/www/wwwroot/manga-drama-studio`：
 
 ```bash
+cd /www/wwwroot/manga-drama-studio
 cp .env.example .env
-pnpm --dir web install
-
-# 终端 1
-go run ./cmd/server
-
-# 终端 2
-pnpm --dir web dev
+openssl rand -hex 32
 ```
 
-打开 <http://localhost:5173>。开发服务器会把 `/api` 代理到 Go 服务的 `8080` 端口。
+编辑 `.env`，至少替换以下值：
 
-若要保存渠道 Token，必须先设置 `APP_SECRET_KEY`。PowerShell 示例：
-
-```powershell
-$env:APP_SECRET_KEY = "replace-with-a-long-random-secret"
-go run ./cmd/server
+```dotenv
+APP_SECRET_KEY=上一步生成的64位随机字符串
+APP_ADMIN_USERNAME=你的管理员账号
+APP_ADMIN_PASSWORD=新的强密码
+DATABASE_PASSWORD=宝塔数据库密码
+NEW_API_TOKEN=在New API后台新建的令牌
 ```
 
-## Docker
+项目已经预设：
+
+```dotenv
+NEW_API_BASE_URL=http://host.docker.internal:3000
+SCRIPT_MODEL=deepseek-v4-pro
+VIDEO_DEFAULT_MODEL=doubao-seedance-2-0-fast-260128
+VIDEO_QUALITY_MODEL=doubao-seedance-2-0-260128
+DATABASE_HOST=host.docker.internal
+```
+
+不要继续使用曾经发到聊天、终端历史或截图里的 Token；请在 New API 后台撤销它并创建新 Token。
+
+### 3. 构建和启动
 
 ```bash
-docker compose up --build
+docker compose config --quiet
+docker compose up -d --build
+docker compose ps
+docker compose logs --tail=200 manga-drama-studio
+curl http://127.0.0.1:8080/healthz
 ```
 
-打开 <http://localhost:8080>。生产环境务必通过外部环境变量设置一个随机的 `APP_SECRET_KEY`，不要使用 compose 中的开发默认值。
+成功时健康检查返回：
 
-## API 概览
+```json
+{"status":"ok"}
+```
 
-| 方法 | 路径 | 用途 |
-|---|---|---|
-| GET/POST | `/api/v1/projects` | 列出/创建项目 |
-| GET/PUT | `/api/v1/projects/{id}/workflow` | 读取/保存工作流 |
-| GET | `/api/v1/catalog/nodes` | 节点类型与端口目录 |
-| POST | `/api/v1/runs` | 创建运行任务 |
-| GET | `/api/v1/runs/{id}/events` | SSE 运行事件 |
-| POST | `/api/v1/runs/{id}/cancel` | 取消任务 |
-| GET/POST | `/api/v1/providers` | 列出/创建模型渠道 |
-| PATCH/DELETE | `/api/v1/providers/{id}` | 启停/删除渠道 |
+浏览器访问 `http://服务器公网IP:8080`。这是 HTTP 地址，不要直接写成 `https://IP:8080`。
 
-## 架构
+### 4. 宝塔反向代理 HTTPS（推荐）
+
+在宝塔创建网站和 SSL 证书，把域名反向代理到：
 
 ```text
-Vue 3 / Vue Flow
-       │ REST + SSE
-Go HTTP API
-       ├── workflow validator / node catalog
-       ├── async runner / event broker
-       ├── executor interface ── mock executor (MVP)
-       └── repository ── atomic JSON store (MVP)
+http://127.0.0.1:8080
 ```
 
-JSON 存储是为本地零依赖体验做的有意取舍，不支持多实例并发。准备生产化时，应优先实现 SQLite/PostgreSQL repository、登录与租户隔离、任务队列、对象存储和托管密钥服务。
+确认代理支持长连接/SSE，然后把 `.env` 改为：
 
-## 验证
+```dotenv
+APP_SESSION_SECURE=true
+```
+
+重启：
+
+```bash
+docker compose up -d
+```
+
+## 更新
+
+上传或拉取新代码后执行：
+
+```bash
+docker compose up -d --build
+docker compose ps
+docker compose logs --tail=100 manga-drama-studio
+```
+
+MySQL 表结构由服务启动时自动迁移；Docker 命名卷 `studio-data` 保存生成的视频，重新构建容器不会删除数据。
+
+## 本地验证
 
 ```bash
 go test ./...
+pnpm --dir web install --frozen-lockfile
 pnpm --dir web build
 ```
 
-## 目录
-
-```text
-cmd/server/       Go 入口
-internal/api/     REST/SSE 与密钥加密
-internal/domain/  领域模型
-internal/runner/  任务运行器与执行器接口
-internal/store/   原子 JSON repository
-internal/workflow 节点目录、示例图和 DAG 校验
-web/              Vue 3 工作台
-docs/             产品脑暴
-openspec/         提案、设计、规格与任务清单
-```
-
+生产镜像包含 FFmpeg 和 Noto CJK 字体。`Dockerfile` 已配置国内 Go、npm 和 Alpine 镜像源，以减少服务器访问海外源超时。

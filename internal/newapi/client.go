@@ -29,7 +29,7 @@ type Client struct {
 type VideoRequest struct {
 	Model    string         `json:"model"`
 	Prompt   string         `json:"prompt"`
-	Seconds  int            `json:"seconds"`
+	Seconds  string         `json:"seconds"`
 	Metadata map[string]any `json:"metadata"`
 }
 

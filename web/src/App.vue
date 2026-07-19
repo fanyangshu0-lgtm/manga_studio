@@ -61,7 +61,7 @@ async function createProject(): Promise<void> {
         <div class="form-actions"><button class="ghost-button" type="button" @click="showCreate = false">取消</button><button class="primary-button" type="submit">创建并进入工作台</button></div>
       </form>
     </div>
-    <ProviderDrawer v-if="showProviders" :providers="store.providers" @close="showProviders = false" @add="store.addProvider" @toggle="store.toggleProvider" @remove="store.deleteProvider" />
+    <ProviderDrawer v-if="showProviders" :providers="store.providers" @close="showProviders = false" @add="store.addProvider" @toggle="store.toggleProvider" @remove="store.deleteProvider" @test="store.testProvider" />
 	</div>
 	<div v-else class="loading-screen"><i /><span>正在检查登录状态…</span></div>
 </template>

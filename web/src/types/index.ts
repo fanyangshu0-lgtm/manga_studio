@@ -73,6 +73,18 @@ export interface Run {
   createdAt: string
 }
 
+export interface Asset {
+  id: string
+  projectId: string
+  runId: string
+  nodeId: string
+  kind: string
+  mime: string
+  size: number
+  sha256: string
+  createdAt: string
+}
+
 export interface RunEvent {
   type: string
   runId: string

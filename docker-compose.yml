@@ -1,14 +1,22 @@
 services:
-  studio:
-    build: .
+  manga-drama-studio:
+    build:
+      context: .
+      args:
+        GOPROXY: ${GOPROXY:-https://goproxy.cn,direct}
+    image: manga-drama-studio:latest
+    container_name: manga-drama-studio
+    env_file:
+      - .env
     ports:
-      - "8080:8080"
-    environment:
-      APP_SECRET_KEY: ${APP_SECRET_KEY:-local-development-key-change-me}
+      - "${APP_PUBLIC_PORT:-8080}:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - studio-data:/app/data
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   studio-data:
-

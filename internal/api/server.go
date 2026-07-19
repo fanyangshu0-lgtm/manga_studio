@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"manga-drama-studio/internal/auth"
 	"manga-drama-studio/internal/config"
 	"manga-drama-studio/internal/domain"
+	"manga-drama-studio/internal/newapi"
 	"manga-drama-studio/internal/runner"
 	"manga-drama-studio/internal/store"
 	"manga-drama-studio/internal/workflow"
@@ -214,6 +216,37 @@ func (s *Server) projects(w http.ResponseWriter, r *http.Request, parts []string
 }
 
 func (s *Server) providers(w http.ResponseWriter, r *http.Request, parts []string) {
+	if len(parts) == 2 && parts[1] == "test" && r.Method == http.MethodPost {
+		provider, err := s.store.Provider(r.Context(), parts[0])
+		if handleStoreError(w, err) {
+			return
+		}
+		if !provider.Enabled {
+			writeError(w, http.StatusConflict, "provider_disabled", "渠道已停用", nil)
+			return
+		}
+		token, err := s.secret.Decrypt(provider.SecretCiphertext)
+		if err != nil {
+			writeInternal(w, err)
+			return
+		}
+		if provider.Models.Script == "" {
+			writeError(w, http.StatusBadRequest, "script_model_required", "未配置编剧模型", nil)
+			return
+		}
+		testContext, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+		var result struct {
+			OK bool `json:"ok"`
+		}
+		err = newapi.New(provider.BaseURL, token, nil).ChatJSON(testContext, provider.Models.Script, []newapi.Message{{Role: "user", Content: "只返回 JSON：{\"ok\":true}"}}, &result)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "provider_test_failed", err.Error(), nil)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"success": result.OK, "model": provider.Models.Script})
+		return
+	}
 	if len(parts) == 0 {
 		switch r.Method {
 		case http.MethodGet:
