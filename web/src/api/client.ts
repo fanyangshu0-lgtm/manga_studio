@@ -4,7 +4,8 @@ const base = import.meta.env.VITE_API_BASE ?? '/api/v1'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${base}${path}`, {
-    ...init,
+	...init,
+	credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', ...init?.headers },
   })
   if (!response.ok) {
@@ -16,6 +17,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+	session: () => request<{ authenticated: boolean; username: string }>('/auth/session'),
+	login: (username: string, password: string) => request<{ authenticated: boolean; username: string }>('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+	logout: () => request<{ authenticated: boolean }>('/auth/logout', { method: 'POST' }),
   nodeCatalog: () => request<NodeDefinition[]>('/catalog/nodes'),
   projects: () => request<Project[]>('/projects'),
   createProject: (input: { name: string; description: string }) => request<{ project: Project; workflow: Workflow }>('/projects', { method: 'POST', body: JSON.stringify(input) }),
@@ -27,6 +31,7 @@ export const api = {
   runEventsUrl: (runId: string) => `${base}/runs/${runId}/events`,
   providers: () => request<Provider[]>('/providers'),
   createProvider: (input: { name: string; kind: string; baseUrl: string; token: string; capabilities: string[]; weight: number }) => request<Provider>('/providers', { method: 'POST', body: JSON.stringify(input) }),
+  updateProvider: (id: string, input: Partial<Omit<Provider, 'id' | 'secretHint'>> & { token?: string }) => request<Provider>(`/providers/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
   toggleProvider: (id: string, enabled: boolean) => request<Provider>(`/providers/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
   deleteProvider: (id: string) => request<void>(`/providers/${id}`, { method: 'DELETE' }),
 }

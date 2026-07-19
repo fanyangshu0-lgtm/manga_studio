@@ -31,7 +31,10 @@ func main() {
 	}
 	broker := runner.NewBroker()
 	runtime := runner.New(data, runner.MockExecutor{}, broker)
-	server := api.New(data, runtime, broker, cfg.SecretKey, cfg.WebDir)
+	server := api.New(data, runtime, broker, cfg)
+	if err := server.BootstrapProvider(context.Background(), cfg.NewAPI); err != nil {
+		log.Fatal(err)
+	}
 	log.Printf("Manga Drama Studio listening on %s", cfg.Address)
 	if err := http.ListenAndServe(cfg.Address, server.Handler()); err != nil {
 		log.Fatal(err)

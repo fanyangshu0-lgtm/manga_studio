@@ -48,17 +48,25 @@ type Project struct {
 }
 
 type Provider struct {
-	ID               string    `json:"id"`
-	Name             string    `json:"name"`
-	Kind             string    `json:"kind"`
-	BaseURL          string    `json:"baseUrl"`
-	Capabilities     []string  `json:"capabilities"`
-	Weight           int       `json:"weight"`
-	Enabled          bool      `json:"enabled"`
-	SecretCiphertext string    `json:"-"`
-	SecretHint       string    `json:"secretHint"`
-	CreatedAt        time.Time `json:"createdAt"`
-	UpdatedAt        time.Time `json:"updatedAt"`
+	ID               string         `json:"id"`
+	Name             string         `json:"name"`
+	Kind             string         `json:"kind"`
+	BaseURL          string         `json:"baseUrl"`
+	Capabilities     []string       `json:"capabilities"`
+	Models           ProviderModels `json:"models"`
+	Weight           int            `json:"weight"`
+	Enabled          bool           `json:"enabled"`
+	SecretCiphertext string         `json:"-"`
+	SecretHint       string         `json:"secretHint"`
+	CreatedAt        time.Time      `json:"createdAt"`
+	UpdatedAt        time.Time      `json:"updatedAt"`
+}
+
+type ProviderModels struct {
+	Script       string `json:"script"`
+	VideoFast    string `json:"videoFast"`
+	VideoQuality string `json:"videoQuality"`
+	VideoDefault string `json:"videoDefault"`
 }
 
 type RunStatus string

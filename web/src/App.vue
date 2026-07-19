@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useStudioStore } from './stores/studio'
 import WorkspaceView from './views/WorkspaceView.vue'
+import LoginView from './views/LoginView.vue'
 import ProviderDrawer from './components/ProviderDrawer.vue'
 
 const store = useStudioStore()
@@ -10,7 +11,7 @@ const showCreate = ref(false)
 const newName = ref('')
 const newDescription = ref('')
 
-onMounted(() => { void store.bootstrap() })
+onMounted(() => { void store.initialize() })
 
 async function createProject(): Promise<void> {
   await store.createProject(newName.value, newDescription.value)
@@ -19,7 +20,8 @@ async function createProject(): Promise<void> {
 </script>
 
 <template>
-  <div class="app-shell">
+	<LoginView v-if="store.authReady && !store.authenticated" />
+	<div v-else-if="store.authReady" class="app-shell">
     <header class="app-header">
       <a class="brand" href="#" aria-label="绘界首页"><i>绘</i><span><strong>绘界</strong><small>MANGA DRAMA STUDIO</small></span></a>
       <div class="project-switcher">
@@ -35,7 +37,8 @@ async function createProject(): Promise<void> {
         <button type="button" class="nav-link" @click="showProviders = true">模型渠道 <span>{{ store.providers.filter((item) => item.enabled).length }}</span></button>
         <a class="nav-link" href="/healthz" target="_blank">服务状态</a>
       </nav>
-      <div class="header-badge"><span /> LOCAL MVP</div>
+		<div class="header-badge"><span /> {{ store.username }}</div>
+		<button class="nav-link" type="button" @click="store.logout">退出</button>
     </header>
 
     <div v-if="store.error" class="global-error"><span>{{ store.error }}</span><button type="button" @click="store.error = ''">×</button></div>
@@ -59,6 +62,7 @@ async function createProject(): Promise<void> {
       </form>
     </div>
     <ProviderDrawer v-if="showProviders" :providers="store.providers" @close="showProviders = false" @add="store.addProvider" @toggle="store.toggleProvider" @remove="store.deleteProvider" />
-  </div>
+	</div>
+	<div v-else class="loading-screen"><i /><span>正在检查登录状态…</span></div>
 </template>
 

@@ -52,7 +52,7 @@ export interface NodeDefinition {
   outputs: PortDefinition[]
 }
 
-export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'interrupted'
 
 export interface NodeRun {
   nodeId: string
@@ -89,6 +89,7 @@ export interface Provider {
   kind: string
   baseUrl: string
   capabilities: string[]
+  models: { script: string; videoFast: string; videoQuality: string; videoDefault: string }
   weight: number
   enabled: boolean
   secretHint: string

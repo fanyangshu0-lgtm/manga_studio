@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"manga-drama-studio/internal/auth"
+	"manga-drama-studio/internal/config"
 	"manga-drama-studio/internal/domain"
 	"manga-drama-studio/internal/runner"
 	"manga-drama-studio/internal/store"
@@ -18,15 +20,22 @@ import (
 )
 
 type Server struct {
-	store  store.Repository
-	runner *runner.Runner
-	broker *runner.Broker
-	secret secretCodec
-	webDir string
+	store    store.Repository
+	runner   *runner.Runner
+	broker   *runner.Broker
+	secret   secretCodec
+	webDir   string
+	sessions *auth.SessionManager
+	admin    config.Admin
+	limiter  *loginLimiter
 }
 
-func New(data store.Repository, runtime *runner.Runner, broker *runner.Broker, secret, webDir string) *Server {
-	return &Server{store: data, runner: runtime, broker: broker, secret: newSecretCodec(secret), webDir: webDir}
+func New(data store.Repository, runtime *runner.Runner, broker *runner.Broker, cfg config.Config) *Server {
+	return &Server{
+		store: data, runner: runtime, broker: broker, secret: newSecretCodec(cfg.SecretKey), webDir: cfg.WebDir,
+		sessions: auth.NewSessionManager(cfg.SecretKey, cfg.Admin.SessionTTL), admin: cfg.Admin,
+		limiter: newLoginLimiter(cfg.Admin.LoginMaxAttempts, cfg.Admin.LoginWindow),
+	}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -60,6 +69,14 @@ func (s *Server) routeAPI(w http.ResponseWriter, r *http.Request) {
 	parts := splitPath(strings.TrimPrefix(r.URL.Path, "/api/v1/"))
 	if len(parts) == 0 {
 		writeError(w, http.StatusNotFound, "not_found", "接口不存在", nil)
+		return
+	}
+	if parts[0] == "auth" {
+		s.authRoutes(w, r, parts[1:])
+		return
+	}
+	if !s.authenticated(r) {
+		writeError(w, http.StatusUnauthorized, "authentication_required", "请先登录", nil)
 		return
 	}
 	switch parts[0] {
@@ -178,6 +195,7 @@ func (s *Server) providers(w http.ResponseWriter, r *http.Request, parts []strin
 			var input struct {
 				Name, Kind, BaseURL, Token string
 				Capabilities               []string
+				Models                     domain.ProviderModels
 				Weight                     int
 			}
 			if !decodeJSON(w, r, &input) {
@@ -196,7 +214,7 @@ func (s *Server) providers(w http.ResponseWriter, r *http.Request, parts []strin
 				input.Weight = 1
 			}
 			now := time.Now().UTC()
-			provider := domain.Provider{ID: domain.NewID("pvd"), Name: strings.TrimSpace(input.Name), Kind: input.Kind, BaseURL: input.BaseURL, Capabilities: input.Capabilities, Weight: input.Weight, Enabled: true, SecretCiphertext: ciphertext, SecretHint: secretHint(input.Token), CreatedAt: now, UpdatedAt: now}
+			provider := domain.Provider{ID: domain.NewID("pvd"), Name: strings.TrimSpace(input.Name), Kind: input.Kind, BaseURL: input.BaseURL, Capabilities: input.Capabilities, Models: input.Models, Weight: input.Weight, Enabled: true, SecretCiphertext: ciphertext, SecretHint: secretHint(input.Token), CreatedAt: now, UpdatedAt: now}
 			if err := s.store.SaveProvider(r.Context(), provider); err != nil {
 				writeInternal(w, err)
 				return
@@ -209,6 +227,54 @@ func (s *Server) providers(w http.ResponseWriter, r *http.Request, parts []strin
 	}
 	id := parts[0]
 	switch r.Method {
+	case http.MethodPut:
+		var input struct {
+			Name, Kind, BaseURL, Token string
+			Capabilities               []string
+			Models                     domain.ProviderModels
+			Weight                     int
+			Enabled                    *bool `json:"enabled"`
+		}
+		if !decodeJSON(w, r, &input) {
+			return
+		}
+		provider, err := s.store.Provider(r.Context(), id)
+		if handleStoreError(w, err) {
+			return
+		}
+		if strings.TrimSpace(input.Name) != "" {
+			provider.Name = strings.TrimSpace(input.Name)
+		}
+		if strings.TrimSpace(input.Kind) != "" {
+			provider.Kind = strings.TrimSpace(input.Kind)
+		}
+		if strings.TrimSpace(input.BaseURL) != "" {
+			provider.BaseURL = strings.TrimRight(strings.TrimSpace(input.BaseURL), "/")
+		}
+		if input.Capabilities != nil {
+			provider.Capabilities = input.Capabilities
+		}
+		provider.Models = input.Models
+		if input.Weight > 0 {
+			provider.Weight = input.Weight
+		}
+		if input.Enabled != nil {
+			provider.Enabled = *input.Enabled
+		}
+		if input.Token != "" {
+			provider.SecretCiphertext, err = s.secret.Encrypt(input.Token)
+			if err != nil {
+				writeInternal(w, err)
+				return
+			}
+			provider.SecretHint = secretHint(input.Token)
+		}
+		provider.UpdatedAt = time.Now().UTC()
+		if err := s.store.SaveProvider(r.Context(), provider); err != nil {
+			writeInternal(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, provider)
 	case http.MethodPatch:
 		var input struct {
 			Enabled *bool `json:"enabled"`
