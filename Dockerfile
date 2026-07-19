@@ -1,7 +1,7 @@
 FROM node:22-alpine AS web
 WORKDIR /src/web
 RUN npm config set registry https://registry.npmmirror.com && corepack enable
-COPY web/package.json web/pnpm-lock.yaml ./
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY web/ ./
 RUN pnpm build
