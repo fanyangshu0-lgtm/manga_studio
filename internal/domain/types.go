@@ -92,17 +92,39 @@ type NodeRun struct {
 }
 
 type Run struct {
-	ID            string             `json:"id"`
-	ProjectID     string             `json:"projectId"`
-	Status        RunStatus          `json:"status"`
-	Progress      int                `json:"progress"`
-	Message       string             `json:"message"`
-	Workflow      Workflow           `json:"workflow"`
-	Nodes         map[string]NodeRun `json:"nodes"`
-	CreatedAt     time.Time          `json:"createdAt"`
-	StartedAt     *time.Time         `json:"startedAt,omitempty"`
-	FinishedAt    *time.Time         `json:"finishedAt,omitempty"`
-	InterruptedAt *time.Time         `json:"interruptedAt,omitempty"`
+	ID            string                    `json:"id"`
+	ProjectID     string                    `json:"projectId"`
+	Status        RunStatus                 `json:"status"`
+	Progress      int                       `json:"progress"`
+	Message       string                    `json:"message"`
+	Workflow      Workflow                  `json:"workflow"`
+	Nodes         map[string]NodeRun        `json:"nodes"`
+	VideoTasks    map[string]VideoTaskState `json:"videoTasks,omitempty"`
+	CreatedAt     time.Time                 `json:"createdAt"`
+	StartedAt     *time.Time                `json:"startedAt,omitempty"`
+	FinishedAt    *time.Time                `json:"finishedAt,omitempty"`
+	InterruptedAt *time.Time                `json:"interruptedAt,omitempty"`
+}
+
+type VideoTaskState struct {
+	ShotID  string `json:"shotId"`
+	TaskID  string `json:"taskId,omitempty"`
+	Status  string `json:"status"`
+	AssetID string `json:"assetId,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+type Asset struct {
+	ID        string    `json:"id"`
+	ProjectID string    `json:"projectId"`
+	RunID     string    `json:"runId"`
+	NodeID    string    `json:"nodeId"`
+	Kind      string    `json:"kind"`
+	Path      string    `json:"-"`
+	MIME      string    `json:"mime"`
+	Size      int64     `json:"size"`
+	SHA256    string    `json:"sha256"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type RunEvent struct {

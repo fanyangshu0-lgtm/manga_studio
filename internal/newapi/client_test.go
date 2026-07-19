@@ -65,3 +65,29 @@ func TestChatJSONAcceptsFencedJSONAndReturnsSafeUpstreamErrors(t *testing.T) {
 		assert.NotContains(t, err.Error(), "private response")
 	})
 }
+
+func TestSubmitAndGetVideoTask(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Bearer sk-test", r.Header.Get("Authorization"))
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/video/generations":
+			var body VideoRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			assert.Equal(t, "doubao-seedance-2-0-fast-260128", body.Model)
+			assert.Equal(t, true, body.Metadata["generate_audio"])
+			_, _ = w.Write([]byte(`{"id":"task-1","status":"queued"}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/video/generations/task-1":
+			_, _ = w.Write([]byte(`{"id":"task-1","status":"succeeded","output":{"video_url":"https://cdn.example/video.mp4"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+	client := New(upstream.URL, "sk-test", upstream.Client())
+	task, err := client.SubmitVideo(context.Background(), VideoRequest{Model: "doubao-seedance-2-0-fast-260128", Prompt: "镜头", Seconds: 5, Metadata: map[string]any{"generate_audio": true}})
+	require.NoError(t, err)
+	assert.Equal(t, "task-1", task.ID)
+	task, err = client.GetVideoTask(context.Background(), task.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "https://cdn.example/video.mp4", task.VideoURL)
+}

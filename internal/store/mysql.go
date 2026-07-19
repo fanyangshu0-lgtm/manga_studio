@@ -302,6 +302,55 @@ func (s *MySQLStore) Close() error {
 	return s.db.Close()
 }
 
+func (s *MySQLStore) SaveAsset(ctx context.Context, asset domain.Asset) error {
+	document, err := json.Marshal(asset)
+	if err != nil {
+		return fmt.Errorf("encode asset: %w", err)
+	}
+	_, err = s.db.ExecContext(ctx, `INSERT INTO assets (id, project_id, run_id, kind, path, document, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE kind = VALUES(kind), path = VALUES(path), document = VALUES(document)`,
+		asset.ID, asset.ProjectID, asset.RunID, asset.Kind, asset.Path, document, asset.CreatedAt)
+	return err
+}
+
+func (s *MySQLStore) Asset(ctx context.Context, id string) (domain.Asset, error) {
+	var document []byte
+	var path string
+	err := s.db.QueryRowContext(ctx, `SELECT document, path FROM assets WHERE id = ?`, id).Scan(&document, &path)
+	if err != nil {
+		return domain.Asset{}, repositoryError(err)
+	}
+	var asset domain.Asset
+	if err := json.Unmarshal(document, &asset); err != nil {
+		return domain.Asset{}, fmt.Errorf("decode asset: %w", err)
+	}
+	asset.Path = path
+	return asset, nil
+}
+
+func (s *MySQLStore) ListRunAssets(ctx context.Context, runID string) ([]domain.Asset, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT document, path FROM assets WHERE run_id = ? ORDER BY created_at ASC`, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []domain.Asset{}
+	for rows.Next() {
+		var document []byte
+		var path string
+		if err := rows.Scan(&document, &path); err != nil {
+			return nil, err
+		}
+		var asset domain.Asset
+		if err := json.Unmarshal(document, &asset); err != nil {
+			return nil, err
+		}
+		asset.Path = path
+		items = append(items, asset)
+	}
+	return items, rows.Err()
+}
+
 type scanner interface {
 	Scan(...any) error
 }

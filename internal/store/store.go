@@ -21,6 +21,7 @@ type state struct {
 	Workflows map[string]domain.Workflow `json:"workflows"`
 	Providers map[string]domain.Provider `json:"providers"`
 	Runs      map[string]domain.Run      `json:"runs"`
+	Assets    map[string]domain.Asset    `json:"assets"`
 }
 
 type Store struct {
@@ -51,7 +52,7 @@ func Open(path string) (*Store, error) {
 func emptyState() state {
 	return state{
 		Projects: map[string]domain.Project{}, Workflows: map[string]domain.Workflow{},
-		Providers: map[string]domain.Provider{}, Runs: map[string]domain.Run{},
+		Providers: map[string]domain.Provider{}, Runs: map[string]domain.Run{}, Assets: map[string]domain.Asset{},
 	}
 }
 
@@ -67,6 +68,9 @@ func (s *Store) normalize() {
 	}
 	if s.state.Runs == nil {
 		s.state.Runs = map[string]domain.Run{}
+	}
+	if s.state.Assets == nil {
+		s.state.Assets = map[string]domain.Asset{}
 	}
 }
 
@@ -274,6 +278,45 @@ func (s *Store) MarkActiveRunsInterrupted(ctx context.Context) error {
 		return nil
 	}
 	return s.persistLocked()
+}
+
+func (s *Store) SaveAsset(ctx context.Context, asset domain.Asset) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.state.Assets[asset.ID] = clone(asset)
+	return s.persistLocked()
+}
+
+func (s *Store) Asset(ctx context.Context, id string) (domain.Asset, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Asset{}, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	asset, ok := s.state.Assets[id]
+	if !ok {
+		return domain.Asset{}, ErrNotFound
+	}
+	return clone(asset), nil
+}
+
+func (s *Store) ListRunAssets(ctx context.Context, runID string) ([]domain.Asset, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	items := []domain.Asset{}
+	for _, asset := range s.state.Assets {
+		if asset.RunID == runID {
+			items = append(items, clone(asset))
+		}
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].CreatedAt.Before(items[j].CreatedAt) })
+	return items, nil
 }
 
 func (s *Store) Close() error { return nil }

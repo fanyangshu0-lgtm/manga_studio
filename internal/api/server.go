@@ -25,6 +25,7 @@ type Server struct {
 	broker   *runner.Broker
 	secret   secretCodec
 	webDir   string
+	assetDir string
 	sessions *auth.SessionManager
 	admin    config.Admin
 	limiter  *loginLimiter
@@ -32,7 +33,7 @@ type Server struct {
 
 func New(data store.Repository, runtime *runner.Runner, broker *runner.Broker, cfg config.Config) *Server {
 	return &Server{
-		store: data, runner: runtime, broker: broker, secret: newSecretCodec(cfg.SecretKey), webDir: cfg.WebDir,
+		store: data, runner: runtime, broker: broker, secret: newSecretCodec(cfg.SecretKey), webDir: cfg.WebDir, assetDir: cfg.AssetDir,
 		sessions: auth.NewSessionManager(cfg.SecretKey, cfg.Admin.SessionTTL), admin: cfg.Admin,
 		limiter: newLoginLimiter(cfg.Admin.LoginMaxAttempts, cfg.Admin.LoginWindow),
 	}
@@ -94,8 +95,39 @@ func (s *Server) routeAPI(w http.ResponseWriter, r *http.Request) {
 	case "runs":
 		s.runs(w, r, parts[1:])
 		return
+	case "assets":
+		s.assets(w, r, parts[1:])
+		return
 	}
 	writeError(w, http.StatusNotFound, "not_found", "接口不存在", nil)
+}
+
+func (s *Server) assets(w http.ResponseWriter, r *http.Request, parts []string) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+	if len(parts) != 1 {
+		writeError(w, http.StatusNotFound, "not_found", "资产不存在", nil)
+		return
+	}
+	asset, err := s.store.Asset(r.Context(), parts[0])
+	if handleStoreError(w, err) {
+		return
+	}
+	root, err := filepath.Abs(s.assetDir)
+	if err != nil {
+		writeInternal(w, err)
+		return
+	}
+	target, err := filepath.Abs(filepath.Join(root, filepath.FromSlash(asset.Path)))
+	if err != nil || (target != root && !strings.HasPrefix(target, root+string(filepath.Separator))) {
+		writeError(w, http.StatusBadRequest, "invalid_asset", "资产路径无效", nil)
+		return
+	}
+	w.Header().Set("Content-Type", asset.MIME)
+	w.Header().Set("Content-Disposition", `inline; filename="`+asset.ID+`.mp4"`)
+	http.ServeFile(w, r, target)
 }
 
 func (s *Server) projects(w http.ResponseWriter, r *http.Request, parts []string) {
@@ -353,6 +385,22 @@ func (s *Server) runs(w http.ResponseWriter, r *http.Request, parts []string) {
 			return
 		}
 		writeJSON(w, http.StatusAccepted, map[string]string{"status": "cancelling"})
+		return
+	}
+	if len(parts) == 2 && parts[1] == "resume" && r.Method == http.MethodPost {
+		if err := s.runner.Resume(id); handleStoreError(w, err) {
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]string{"status": "queued"})
+		return
+	}
+	if len(parts) == 2 && parts[1] == "assets" && r.Method == http.MethodGet {
+		assets, err := s.store.ListRunAssets(r.Context(), id)
+		if err != nil {
+			writeInternal(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, assets)
 		return
 	}
 	if len(parts) == 2 && parts[1] == "events" && r.Method == http.MethodGet {

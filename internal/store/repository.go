@@ -19,6 +19,9 @@ type Repository interface {
 	SaveRun(context.Context, domain.Run) error
 	Run(context.Context, string) (domain.Run, error)
 	UpdateRun(context.Context, string, func(*domain.Run)) (domain.Run, error)
+	SaveAsset(context.Context, domain.Asset) error
+	Asset(context.Context, string) (domain.Asset, error)
+	ListRunAssets(context.Context, string) ([]domain.Asset, error)
 	MarkActiveRunsInterrupted(context.Context) error
 	Close() error
 }

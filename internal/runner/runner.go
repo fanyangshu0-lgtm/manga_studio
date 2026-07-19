@@ -49,6 +49,21 @@ func (r *Runner) Cancel(runID string) error {
 	return nil
 }
 
+func (r *Runner) Resume(runID string) error {
+	run, err := r.store.Run(context.Background(), runID)
+	if err != nil {
+		return err
+	}
+	if run.Status != domain.RunFailed && run.Status != domain.RunCancelled && run.Status != domain.RunInterrupted {
+		return errors.New("仅失败、取消或中断的任务可以恢复")
+	}
+	run.Status = domain.RunQueued
+	run.Message = "任务已恢复并重新入队"
+	run.FinishedAt = nil
+	run.InterruptedAt = nil
+	return r.Start(run)
+}
+
 func (r *Runner) execute(ctx context.Context, runID string) {
 	defer func() { r.mu.Lock(); delete(r.cancels, runID); r.mu.Unlock() }()
 	run, err := r.store.Run(ctx, runID)
@@ -76,7 +91,8 @@ func (r *Runner) execute(ctx context.Context, runID string) {
 			nodeRun.Message = "节点开始"
 			run.Nodes[node.ID] = nodeRun
 		})
-		nodeOutputs, execErr := r.executor.Execute(ctx, node, outputs, func(progress int, message string) {
+		executionContext := context.WithValue(ctx, executionInfoKey{}, executionInfo{RunID: run.ID, ProjectID: run.ProjectID, NodeID: node.ID})
+		nodeOutputs, execErr := r.executor.Execute(executionContext, node, outputs, func(progress int, message string) {
 			overall := (index*100 + progress) / len(order)
 			r.update(runID, "node", node.ID, domain.RunRunning, overall, message, func(run *domain.Run) {
 				nodeRun := run.Nodes[node.ID]
