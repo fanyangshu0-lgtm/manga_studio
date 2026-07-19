@@ -16,7 +16,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	data, err := store.Open(cfg.DataFile)
+	var data store.Repository
+	if cfg.Database.Host != "" {
+		data, err = store.OpenMySQL(context.Background(), cfg.Database)
+	} else {
+		data, err = store.Open(cfg.DataFile)
+	}
 	if err != nil {
 		log.Fatal(err)
 	}

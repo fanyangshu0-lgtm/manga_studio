@@ -1,0 +1,15 @@
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: manga_drama_studio_test
+      MYSQL_USER: manga_test
+      MYSQL_PASSWORD: manga_test_password
+      MYSQL_ROOT_PASSWORD: root_test_password
+    ports:
+      - "13307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot_test_password"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
