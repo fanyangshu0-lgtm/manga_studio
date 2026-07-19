@@ -74,7 +74,7 @@ docker compose config --quiet
 docker compose up -d --build
 docker compose ps
 docker compose logs --tail=200 manga-drama-studio
-curl http://127.0.0.1:8080/healthz
+curl http://127.0.0.1:3001/healthz
 ```
 
 成功时健康检查返回：
@@ -83,14 +83,14 @@ curl http://127.0.0.1:8080/healthz
 {"status":"ok"}
 ```
 
-浏览器访问 `http://服务器公网IP:8080`。这是 HTTP 地址，不要直接写成 `https://IP:8080`。
+浏览器访问 `http://服务器公网IP:3001`。这是 HTTP 地址，不要直接写成 `https://IP:3001`。
 
 ### 4. 宝塔反向代理 HTTPS（推荐）
 
 在宝塔创建网站和 SSL 证书，把域名反向代理到：
 
 ```text
-http://127.0.0.1:8080
+http://127.0.0.1:3001
 ```
 
 确认代理支持长连接/SSE，然后把 `.env` 改为：
