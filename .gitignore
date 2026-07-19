@@ -1,0 +1,9 @@
+/data/*.json
+!/data/.gitkeep
+/web/node_modules/
+/web/dist/
+/.idea/
+/.vscode/
+*.log
+.env
+/server.exe
