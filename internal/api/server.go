@@ -18,14 +18,14 @@ import (
 )
 
 type Server struct {
-	store  *store.Store
+	store  store.Repository
 	runner *runner.Runner
 	broker *runner.Broker
 	secret secretCodec
 	webDir string
 }
 
-func New(data *store.Store, runtime *runner.Runner, broker *runner.Broker, secret, webDir string) *Server {
+func New(data store.Repository, runtime *runner.Runner, broker *runner.Broker, secret, webDir string) *Server {
 	return &Server{store: data, runner: runtime, broker: broker, secret: newSecretCodec(secret), webDir: webDir}
 }
 
@@ -85,7 +85,12 @@ func (s *Server) projects(w http.ResponseWriter, r *http.Request, parts []string
 	if len(parts) == 0 {
 		switch r.Method {
 		case http.MethodGet:
-			writeJSON(w, http.StatusOK, s.store.ListProjects())
+			projects, err := s.store.ListProjects(r.Context())
+			if err != nil {
+				writeInternal(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, projects)
 		case http.MethodPost:
 			var input struct {
 				Name        string `json:"name"`
@@ -102,7 +107,7 @@ func (s *Server) projects(w http.ResponseWriter, r *http.Request, parts []string
 			now := time.Now().UTC()
 			project := domain.Project{ID: domain.NewID("prj"), Name: input.Name, Description: strings.TrimSpace(input.Description), CreatedAt: now, UpdatedAt: now}
 			graph := workflow.Example(project.ID)
-			if err := s.store.CreateProject(project, graph); err != nil {
+			if err := s.store.CreateProject(r.Context(), project, graph); err != nil {
 				writeInternal(w, err)
 				return
 			}
@@ -114,7 +119,7 @@ func (s *Server) projects(w http.ResponseWriter, r *http.Request, parts []string
 	}
 	projectID := parts[0]
 	if len(parts) == 1 && r.Method == http.MethodGet {
-		project, err := s.store.Project(projectID)
+		project, err := s.store.Project(r.Context(), projectID)
 		if handleStoreError(w, err) {
 			return
 		}
@@ -124,7 +129,7 @@ func (s *Server) projects(w http.ResponseWriter, r *http.Request, parts []string
 	if len(parts) == 2 && parts[1] == "workflow" {
 		switch r.Method {
 		case http.MethodGet:
-			graph, err := s.store.Workflow(projectID)
+			graph, err := s.store.Workflow(r.Context(), projectID)
 			if handleStoreError(w, err) {
 				return
 			}
@@ -134,7 +139,7 @@ func (s *Server) projects(w http.ResponseWriter, r *http.Request, parts []string
 			if !decodeJSON(w, r, &graph) {
 				return
 			}
-			current, err := s.store.Workflow(projectID)
+			current, err := s.store.Workflow(r.Context(), projectID)
 			if handleStoreError(w, err) {
 				return
 			}
@@ -146,7 +151,7 @@ func (s *Server) projects(w http.ResponseWriter, r *http.Request, parts []string
 				writeError(w, http.StatusUnprocessableEntity, "invalid_workflow", "工作流校验失败", issues)
 				return
 			}
-			if err := s.store.SaveWorkflow(graph); err != nil {
+			if err := s.store.SaveWorkflow(r.Context(), graph); err != nil {
 				writeInternal(w, err)
 				return
 			}
@@ -163,7 +168,12 @@ func (s *Server) providers(w http.ResponseWriter, r *http.Request, parts []strin
 	if len(parts) == 0 {
 		switch r.Method {
 		case http.MethodGet:
-			writeJSON(w, http.StatusOK, s.store.ListProviders())
+			providers, err := s.store.ListProviders(r.Context())
+			if err != nil {
+				writeInternal(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, providers)
 		case http.MethodPost:
 			var input struct {
 				Name, Kind, BaseURL, Token string
@@ -187,7 +197,7 @@ func (s *Server) providers(w http.ResponseWriter, r *http.Request, parts []strin
 			}
 			now := time.Now().UTC()
 			provider := domain.Provider{ID: domain.NewID("pvd"), Name: strings.TrimSpace(input.Name), Kind: input.Kind, BaseURL: input.BaseURL, Capabilities: input.Capabilities, Weight: input.Weight, Enabled: true, SecretCiphertext: ciphertext, SecretHint: secretHint(input.Token), CreatedAt: now, UpdatedAt: now}
-			if err := s.store.SaveProvider(provider); err != nil {
+			if err := s.store.SaveProvider(r.Context(), provider); err != nil {
 				writeInternal(w, err)
 				return
 			}
@@ -210,19 +220,19 @@ func (s *Server) providers(w http.ResponseWriter, r *http.Request, parts []strin
 			writeError(w, http.StatusBadRequest, "enabled_required", "enabled 字段必填", nil)
 			return
 		}
-		provider, err := s.store.Provider(id)
+		provider, err := s.store.Provider(r.Context(), id)
 		if handleStoreError(w, err) {
 			return
 		}
 		provider.Enabled = *input.Enabled
 		provider.UpdatedAt = time.Now().UTC()
-		if err := s.store.SaveProvider(provider); err != nil {
+		if err := s.store.SaveProvider(r.Context(), provider); err != nil {
 			writeInternal(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, provider)
 	case http.MethodDelete:
-		if err := s.store.DeleteProvider(id); handleStoreError(w, err) {
+		if err := s.store.DeleteProvider(r.Context(), id); handleStoreError(w, err) {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -239,7 +249,7 @@ func (s *Server) runs(w http.ResponseWriter, r *http.Request, parts []string) {
 		if !decodeJSON(w, r, &input) {
 			return
 		}
-		graph, err := s.store.Workflow(input.ProjectID)
+		graph, err := s.store.Workflow(r.Context(), input.ProjectID)
 		if handleStoreError(w, err) {
 			return
 		}
@@ -265,7 +275,7 @@ func (s *Server) runs(w http.ResponseWriter, r *http.Request, parts []string) {
 	}
 	id := parts[0]
 	if len(parts) == 1 && r.Method == http.MethodGet {
-		run, err := s.store.Run(id)
+		run, err := s.store.Run(r.Context(), id)
 		if handleStoreError(w, err) {
 			return
 		}
@@ -289,7 +299,7 @@ func (s *Server) runs(w http.ResponseWriter, r *http.Request, parts []string) {
 func (s *Server) events(w http.ResponseWriter, r *http.Request, runID string) {
 	channel, unsubscribe := s.broker.Subscribe(runID)
 	defer unsubscribe()
-	run, err := s.store.Run(runID)
+	run, err := s.store.Run(r.Context(), runID)
 	if handleStoreError(w, err) {
 		return
 	}
@@ -345,7 +355,7 @@ func splitPath(path string) []string {
 	return raw
 }
 func terminal(status domain.RunStatus) bool {
-	return status == domain.RunSucceeded || status == domain.RunFailed || status == domain.RunCancelled
+	return status == domain.RunSucceeded || status == domain.RunFailed || status == domain.RunCancelled || status == domain.RunInterrupted
 }
 func writeEvent(w io.Writer, event domain.RunEvent) {
 	data, _ := json.Marshal(event)

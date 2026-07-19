@@ -64,11 +64,12 @@ type Provider struct {
 type RunStatus string
 
 const (
-	RunQueued    RunStatus = "queued"
-	RunRunning   RunStatus = "running"
-	RunSucceeded RunStatus = "succeeded"
-	RunFailed    RunStatus = "failed"
-	RunCancelled RunStatus = "cancelled"
+	RunQueued      RunStatus = "queued"
+	RunRunning     RunStatus = "running"
+	RunSucceeded   RunStatus = "succeeded"
+	RunFailed      RunStatus = "failed"
+	RunCancelled   RunStatus = "cancelled"
+	RunInterrupted RunStatus = "interrupted"
 )
 
 type NodeRun struct {
@@ -83,16 +84,17 @@ type NodeRun struct {
 }
 
 type Run struct {
-	ID         string             `json:"id"`
-	ProjectID  string             `json:"projectId"`
-	Status     RunStatus          `json:"status"`
-	Progress   int                `json:"progress"`
-	Message    string             `json:"message"`
-	Workflow   Workflow           `json:"workflow"`
-	Nodes      map[string]NodeRun `json:"nodes"`
-	CreatedAt  time.Time          `json:"createdAt"`
-	StartedAt  *time.Time         `json:"startedAt,omitempty"`
-	FinishedAt *time.Time         `json:"finishedAt,omitempty"`
+	ID            string             `json:"id"`
+	ProjectID     string             `json:"projectId"`
+	Status        RunStatus          `json:"status"`
+	Progress      int                `json:"progress"`
+	Message       string             `json:"message"`
+	Workflow      Workflow           `json:"workflow"`
+	Nodes         map[string]NodeRun `json:"nodes"`
+	CreatedAt     time.Time          `json:"createdAt"`
+	StartedAt     *time.Time         `json:"startedAt,omitempty"`
+	FinishedAt    *time.Time         `json:"finishedAt,omitempty"`
+	InterruptedAt *time.Time         `json:"interruptedAt,omitempty"`
 }
 
 type RunEvent struct {

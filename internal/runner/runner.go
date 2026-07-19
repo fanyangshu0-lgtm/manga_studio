@@ -13,19 +13,19 @@ import (
 )
 
 type Runner struct {
-	store    *store.Store
+	store    store.Repository
 	executor Executor
 	broker   *Broker
 	mu       sync.Mutex
 	cancels  map[string]context.CancelFunc
 }
 
-func New(data *store.Store, executor Executor, broker *Broker) *Runner {
+func New(data store.Repository, executor Executor, broker *Broker) *Runner {
 	return &Runner{store: data, executor: executor, broker: broker, cancels: map[string]context.CancelFunc{}}
 }
 
 func (r *Runner) Start(run domain.Run) error {
-	if err := r.store.SaveRun(run); err != nil {
+	if err := r.store.SaveRun(context.Background(), run); err != nil {
 		return err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -37,7 +37,7 @@ func (r *Runner) Start(run domain.Run) error {
 }
 
 func (r *Runner) Cancel(runID string) error {
-	if _, err := r.store.Run(runID); err != nil {
+	if _, err := r.store.Run(context.Background(), runID); err != nil {
 		return err
 	}
 	r.mu.Lock()
@@ -51,7 +51,7 @@ func (r *Runner) Cancel(runID string) error {
 
 func (r *Runner) execute(ctx context.Context, runID string) {
 	defer func() { r.mu.Lock(); delete(r.cancels, runID); r.mu.Unlock() }()
-	run, err := r.store.Run(runID)
+	run, err := r.store.Run(ctx, runID)
 	if err != nil {
 		return
 	}
@@ -122,14 +122,14 @@ func (r *Runner) finish(runID string, status domain.RunStatus, message string) {
 	finished := time.Now().UTC()
 	progress := 100
 	if status != domain.RunSucceeded {
-		current, _ := r.store.Run(runID)
+		current, _ := r.store.Run(context.Background(), runID)
 		progress = current.Progress
 	}
 	r.update(runID, "run", "", status, progress, message, func(run *domain.Run) { run.FinishedAt = &finished })
 }
 
 func (r *Runner) update(runID, eventType, nodeID string, status domain.RunStatus, progress int, message string, mutate func(*domain.Run)) {
-	_, err := r.store.UpdateRun(runID, func(run *domain.Run) {
+	_, err := r.store.UpdateRun(context.Background(), runID, func(run *domain.Run) {
 		if eventType == "run" {
 			run.Status = status
 		}

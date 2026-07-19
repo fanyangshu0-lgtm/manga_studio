@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"time"
 
 	"manga-drama-studio/internal/domain"
 )
@@ -91,7 +93,10 @@ func clone[T any](value T) T {
 	return result
 }
 
-func (s *Store) CreateProject(project domain.Project, workflow domain.Workflow) error {
+func (s *Store) CreateProject(ctx context.Context, project domain.Project, workflow domain.Workflow) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.state.Projects[project.ID] = clone(project)
@@ -99,7 +104,10 @@ func (s *Store) CreateProject(project domain.Project, workflow domain.Workflow) 
 	return s.persistLocked()
 }
 
-func (s *Store) ListProjects() []domain.Project {
+func (s *Store) ListProjects(ctx context.Context) ([]domain.Project, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	items := make([]domain.Project, 0, len(s.state.Projects))
@@ -107,10 +115,13 @@ func (s *Store) ListProjects() []domain.Project {
 		items = append(items, clone(item))
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].UpdatedAt.After(items[j].UpdatedAt) })
-	return items
+	return items, nil
 }
 
-func (s *Store) Project(id string) (domain.Project, error) {
+func (s *Store) Project(ctx context.Context, id string) (domain.Project, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Project{}, err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	item, ok := s.state.Projects[id]
@@ -120,7 +131,10 @@ func (s *Store) Project(id string) (domain.Project, error) {
 	return clone(item), nil
 }
 
-func (s *Store) Workflow(projectID string) (domain.Workflow, error) {
+func (s *Store) Workflow(ctx context.Context, projectID string) (domain.Workflow, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Workflow{}, err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	item, ok := s.state.Workflows[projectID]
@@ -130,7 +144,10 @@ func (s *Store) Workflow(projectID string) (domain.Workflow, error) {
 	return clone(item), nil
 }
 
-func (s *Store) SaveWorkflow(workflow domain.Workflow) error {
+func (s *Store) SaveWorkflow(ctx context.Context, workflow domain.Workflow) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	project, ok := s.state.Projects[workflow.ProjectID]
@@ -143,7 +160,10 @@ func (s *Store) SaveWorkflow(workflow domain.Workflow) error {
 	return s.persistLocked()
 }
 
-func (s *Store) ListProviders() []domain.Provider {
+func (s *Store) ListProviders(ctx context.Context) ([]domain.Provider, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	items := make([]domain.Provider, 0, len(s.state.Providers))
@@ -151,17 +171,23 @@ func (s *Store) ListProviders() []domain.Provider {
 		items = append(items, clone(item))
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].CreatedAt.Before(items[j].CreatedAt) })
-	return items
+	return items, nil
 }
 
-func (s *Store) SaveProvider(provider domain.Provider) error {
+func (s *Store) SaveProvider(ctx context.Context, provider domain.Provider) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.state.Providers[provider.ID] = clone(provider)
 	return s.persistLocked()
 }
 
-func (s *Store) Provider(id string) (domain.Provider, error) {
+func (s *Store) Provider(ctx context.Context, id string) (domain.Provider, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Provider{}, err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	item, ok := s.state.Providers[id]
@@ -171,7 +197,10 @@ func (s *Store) Provider(id string) (domain.Provider, error) {
 	return clone(item), nil
 }
 
-func (s *Store) DeleteProvider(id string) error {
+func (s *Store) DeleteProvider(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.state.Providers[id]; !ok {
@@ -181,14 +210,20 @@ func (s *Store) DeleteProvider(id string) error {
 	return s.persistLocked()
 }
 
-func (s *Store) SaveRun(run domain.Run) error {
+func (s *Store) SaveRun(ctx context.Context, run domain.Run) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.state.Runs[run.ID] = clone(run)
 	return s.persistLocked()
 }
 
-func (s *Store) Run(id string) (domain.Run, error) {
+func (s *Store) Run(ctx context.Context, id string) (domain.Run, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Run{}, err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	item, ok := s.state.Runs[id]
@@ -198,7 +233,10 @@ func (s *Store) Run(id string) (domain.Run, error) {
 	return clone(item), nil
 }
 
-func (s *Store) UpdateRun(id string, update func(*domain.Run)) (domain.Run, error) {
+func (s *Store) UpdateRun(ctx context.Context, id string, update func(*domain.Run)) (domain.Run, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Run{}, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	run, ok := s.state.Runs[id]
@@ -212,3 +250,30 @@ func (s *Store) UpdateRun(id string, update func(*domain.Run)) (domain.Run, erro
 	}
 	return clone(run), nil
 }
+
+func (s *Store) MarkActiveRunsInterrupted(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now().UTC()
+	changed := false
+	for id, run := range s.state.Runs {
+		if run.Status != domain.RunQueued && run.Status != domain.RunRunning {
+			continue
+		}
+		run.Status = domain.RunInterrupted
+		run.Message = "服务重启，任务已中断"
+		run.InterruptedAt = &now
+		run.FinishedAt = &now
+		s.state.Runs[id] = clone(run)
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+	return s.persistLocked()
+}
+
+func (s *Store) Close() error { return nil }
